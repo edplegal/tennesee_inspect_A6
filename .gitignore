@@ -1,0 +1,7 @@
+
+# Inspect logs and local env
+logs/
+.env
+__pycache__/
+outputs/
+.DS_Store
