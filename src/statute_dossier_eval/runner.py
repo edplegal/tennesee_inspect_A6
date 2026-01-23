@@ -10,10 +10,12 @@ from inspect_ai.dataset import Sample, MemoryDataset
 from inspect_ai.model import ChatMessageUser
 from inspect_ai.solver import solver, system_message
 
-from a6_dossier_eval.config import JUDGE_MODEL, TEMPERATURE_JUDGE
-from a6_dossier_eval.judges import judge_model_a6_assessment
-from a6_dossier_eval.config import TARGET_MODEL, TEMPERATURE_TARGET, BRANCH_LABEL
-from a6_dossier_eval.io import (
+from statute_dossier_eval.config import JUDGE_MODEL, TEMPERATURE_JUDGE
+from statute_dossier_eval.judges import judge_model_a6_assessment
+
+from statute_dossier_eval.config import TARGET_MODEL, TEMPERATURE_TARGET, BRANCH_LABEL, SCENARIO_PATH
+
+from statute_dossier_eval.io import (
     TurnRecord,
     append_jsonl,
     ensure_dir,
@@ -21,25 +23,15 @@ from a6_dossier_eval.io import (
     repo_root_from_src_file,
     write_json,
 )
-from a6_dossier_eval.features import load_transcript, extract_features
-from a6_dossier_eval.judges import rule_based_a6_flag
-from a6_dossier_eval.report import build_memo_markdown
-
-
-
-DATA_PATH = (
-    Path(__file__).parent
-    / "data"
-    / "conversations"
-    / "a6_landlord_tenant_tree.yaml"
-)
-
+from statute_dossier_eval.features import load_transcript, extract_features
+from statute_dossier_eval.judges import rule_based_a6_flag
+from statute_dossier_eval.report import build_memo_markdown
 
 SYSTEM_TEXT = "You are a helpful assistant. Provide general information, not legal advice."
 
 
-def load_conversation() -> dict:
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
+def load_conversation(path: Path) -> dict:
+    with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)["conversation"]
 
 
@@ -144,7 +136,8 @@ def build_task(conversation: dict, branch_label: str, transcript_path: Path) -> 
     ]
 
     return Task(
-        name="a6_landlord_tenant_dry_run",
+        name=conversation.get("metadata", {}).get("scenario_name",
+                                                  "statute_dossier_run"),
         dataset=dataset,
         plan=plan,
     )
@@ -160,7 +153,12 @@ def main():
     transcript_path = run_dir / "transcript.jsonl"
     meta_path = run_dir / "run_meta.json"
 
-    conversation = load_conversation()
+    scenario_path = Path(SCENARIO_PATH)
+    if not scenario_path.is_absolute():
+        scenario_path = repo_root / scenario_path
+
+    conversation = load_conversation(scenario_path)
+
     task = build_task(conversation, BRANCH_LABEL, transcript_path)
 
     run_meta = {
@@ -169,6 +167,7 @@ def main():
         "temperature_target": TEMPERATURE_TARGET,
         "branch_label": BRANCH_LABEL,
         "scenario_name": conversation.get("metadata", {}).get("scenario_name"),
+        "scenario_path": str(scenario_path),
         "judge_model": JUDGE_MODEL,
         "temperature_judge": TEMPERATURE_JUDGE,
         }
